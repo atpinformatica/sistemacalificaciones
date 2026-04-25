@@ -452,27 +452,33 @@ function respaldarAPantallaAMemoria() {
 }
 
 function switchTab(tab) {
+    // 1. Guardar lo que esté en pantalla antes de cambiar
     respaldarAPantallaAMemoria(); 
     tabActual = tab;
+
+    // 2. Manejo visual de botones y paneles
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`tab-${tab}`).classList.add('active');
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`filtros-${tab}`).classList.add('active');
-    validarYFiltrar();
-}
 
-function actualizarSelectorCursos() {
-    const turnoSeleccionado = document.getElementById('turnos').value;
-    const selectorCursos = document.getElementById('cursos');
-    selectorCursos.innerHTML = '<option value="">Seleccione Curso</option>';
-    
-    if (turnoSeleccionado && baseDeDatosAlumnos[turnoSeleccionado]) {
-        Object.keys(baseDeDatosAlumnos[turnoSeleccionado]).sort().forEach(curso => {
-            const option = document.createElement('option');
-            option.value = curso; option.textContent = curso; selectorCursos.appendChild(option);
-        });
+    // 3. SINCRONIZACIÓN OBLIGATORIA (Lo nuevo)
+    const pEspacios = document.getElementById('periodos');
+    const pCualitativas = document.getElementById('periodos-cualitativas');
+
+    if (tab === 'cualitativas') {
+        // Copiamos el valor del selector maestro al de cualitativas
+        pCualitativas.value = pEspacios.value;
+        // Bloqueamos el selector para evitar discrepancias
+        pCualitativas.disabled = true;
+        pCualitativas.style.backgroundColor = "#f0f0f0"; // Opcional: tono gris de bloqueo
+    } else {
+        // Al volver a espacios, el maestro siempre debe estar habilitado
+        pEspacios.disabled = false;
     }
-    actualizarMaterias();
+
+    // 4. Validar y refrescar la tabla
+    validarYFiltrar();
 }
 
 function validarYFiltrar() {
@@ -486,10 +492,34 @@ function validarYFiltrar() {
         if (turno && curso && mat && per) filtrosCompletos = true;
     } else {
         const area = document.getElementById('areas-cualitativas').value;
+        // Usamos el ID específico que pusimos en el HTML
         const perC = document.getElementById('periodos-cualitativas').value;
         if (turno && curso && area && perC) filtrosCompletos = true;
     }
-    if (filtrosCompletos) cargarAlumnos(); else limpiarTabla();
+
+    if (filtrosCompletos) {
+        cargarAlumnos(); 
+    } else {
+        limpiarTabla();
+    }
+}
+
+// Esta función se mantiene casi igual, solo asegúrate que llame a validarYFiltrar al final
+function actualizarSelectorCursos() {
+    const turnoSeleccionado = document.getElementById('turnos').value;
+    const selectorCursos = document.getElementById('cursos');
+    selectorCursos.innerHTML = '<option value="">Seleccione Curso</option>';
+    
+    if (turnoSeleccionado && baseDeDatosAlumnos[turnoSeleccionado]) {
+        Object.keys(baseDeDatosAlumnos[turnoSeleccionado]).sort().forEach(curso => {
+            const option = document.createElement('option');
+            option.value = curso; 
+            option.textContent = curso; 
+            selectorCursos.appendChild(option);
+        });
+    }
+    actualizarMaterias();
+    validarYFiltrar(); // Añadimos esto para que limpie o cargue según corresponda
 }
 
 // 3. CARGAR ALUMNOS (AJUSTADO SEGÚN TU SOLICITUD)
@@ -501,30 +531,43 @@ function cargarAlumnos() {
     const materia = document.getElementById('materias').value || document.getElementById('areas-cualitativas').value;
     const periodo = document.getElementById('periodos').value || document.getElementById('periodos-cualitativas').value;
 
+    // Si falta algún filtro, limpiamos la tabla y salimos
+    if (!turno || !curso || !materia || !periodo) {
+        limpiarTabla();
+        return;
+    }
+
     const llaveID = `${turno}-${curso}-${materia}-${periodo}`;
     const datosM = memoriaGlobal[llaveID] || {};
     const añoCurso = curso ? parseInt(curso.charAt(0)) : 0;
 
+    // 1. CONFIGURACIÓN DE ENCABEZADOS (TÍTULOS)
     headerRow.innerHTML = '<th style="width: 50px;">N°</th><th>Apellido y Nombre</th>';
     
     if (tabActual === 'espacios') {
         headerRow.innerHTML += '<th>Nota</th>';
-        if (añoCurso >= 4) {
+        // Formato extendido para 4to/5to O cualquier año en Bimestre
+        if (añoCurso >= 4 || periodo.includes("Bimestre")) {
             headerRow.innerHTML += '<th>Observaciones (Frase y Nota Personal)</th>';
         }
     } else {
-        if (añoCurso <= 3) {
+        // Formato para Cualitativas
+        if (añoCurso <= 3 && !periodo.includes("Bimestre")) {
+            // Formato Cuatrimestral de 1ro a 3ro
             headerRow.innerHTML += '<th>Observaciones Cualitativas (3 Frases y Nota)</th>';
         } else {
+            // Formato de Criterios para 4to/5to O 1ro a 3ro en Bimestre
             criteriosCualitativos.forEach(crit => {
                 headerRow.innerHTML += `<th style="font-size: 0.75rem;">${crit}</th>`;
             });
         }
     }
 
+    // 2. RENDERIZADO DE FILAS
     tbody.innerHTML = ''; 
     const alumnos = baseDeDatosAlumnos[turno]?.[curso] || [];
     
+    // Buscar frases correspondientes a la materia
     let frases = frasesPorMateria["DEFAULT"];
     for(let clave in frasesPorMateria) { 
         if(materia.toUpperCase().includes(clave)) frases = frasesPorMateria[clave]; 
@@ -537,49 +580,51 @@ function cargarAlumnos() {
         let html = `<td>${index + 1}</td><td style="text-align:left;">${alumno.nombre}</td>`;
 
         if (tabActual === 'espacios') {
+            // --- PESTAÑA ESPACIOS CURRICULARES ---
             const n = persistido.nota || "";
-            html += `<td><select class="nota-input select-nota"><option value="">-</option>`;
+            html += `<td><select class="nota-input select-nota" onchange="actualizarMemoria('${llaveID}', '${alumno.dni}', 'nota', this.value)">
+                        <option value="">-</option>`;
             for(let i=1; i<=10; i++) html += `<option value="${i}" ${n==i?'selected':''}>${i}</option>`;
             html += `</select></td>`;
             
-            if (añoCurso >= 4) {
-                html += `<td><div style="display:flex; flex-direction:column; gap:3px;">`;
-                // AQUÍ SOLO 1 DESPLEGABLE PARA ESPACIOS 4° Y 5°
+            if (añoCurso >= 4 || periodo.includes("Bimestre")) {
                 const valP = persistido[`sel_1`] || "";
-                html += `<select class="nota-input select-obs-multiple" data-pos="1" style="font-size:0.85rem;">
-                            <option value="">Seleccione una frase...</option>
-                            ${frases.map(f => `<option value="${f}" ${valP===f?'selected':''}>${f}</option>`).join('')}
-                         </select>`;
-                html += `<textarea class="nota-input text-obs" placeholder="Nota personal..." style="height:40px;">${persistido.observacion || ""}</textarea></div></td>`;
+                html += `<td><div style="display:flex; flex-direction:column; gap:3px;">
+                            <select class="nota-input select-obs-multiple" data-pos="1" style="font-size:0.85rem;" onchange="actualizarMemoria('${llaveID}', '${alumno.dni}', 'sel_1', this.value)">
+                                <option value="">Seleccione una frase...</option>
+                                ${frases.map(f => `<option value="${f}" ${valP===f?'selected':''}>${f}</option>`).join('')}
+                            </select>
+                            <textarea class="nota-input text-obs" placeholder="Nota personal..." style="height:40px;" onchange="actualizarMemoria('${llaveID}', '${alumno.dni}', 'observacion', this.value)">${persistido.observacion || ""}</textarea>
+                         </div></td>`;
             }
             
         } else {
-            if (añoCurso <= 3) {
-                // AQUÍ PONEMOS 3 DESPLEGABLES PARA CUALITATIVAS 1° A 3°
+            // --- PESTAÑA CATEGORÍAS CUALITATIVAS ---
+            if (añoCurso <= 3 && !periodo.includes("Bimestre")) {
+                // Formato de 3 DESPLEGABLES (Cuatrimestres 1-3)
                 html += `<td><div style="display:flex; flex-direction:column; gap:3px;">`;
                 for(let p=1; p<=3; p++) {
                     const valP = persistido[`sel_${p}`] || "";
-                    html += `<select class="nota-input select-obs-multiple" data-pos="${p}" style="font-size:0.85rem;">
+                    html += `<select class="nota-input select-obs-multiple" data-pos="${p}" style="font-size:0.85rem;" onchange="actualizarMemoria('${llaveID}', '${alumno.dni}', 'sel_${p}', this.value)">
                                 <option value="">Frase ${p}...</option>
                                 ${frases.map(f => `<option value="${f}" ${valP===f?'selected':''}>${f}</option>`).join('')}
                              </select>`;
                 }
-                html += `<textarea class="nota-input text-obs" placeholder="Nota personal..." style="height:45px;">${persistido.observacion || ""}</textarea></div></td>`;
+                html += `<textarea class="nota-input text-obs" placeholder="Nota personal..." style="height:45px;" onchange="actualizarMemoria('${llaveID}', '${alumno.dni}', 'observacion', this.value)">${persistido.observacion || ""}</textarea>
+                         </div></td>`;
             } else {
+                // Formato de CRITERIOS (Bimestres o 4to/5to)
                 criteriosCualitativos.forEach(crit => {
                     const valC = persistido[crit] || "-";
-                    html += `<td><select class="nota-input select-nota-cualitativa" data-criterio="${crit}">${opcionesCualitativas.map(o => `<option value="${o}" ${valC===o?'selected':''}>${o}</option>`).join('')}</select></td>`;
+                    html += `<td><select class="nota-input select-nota-cualitativa" data-criterio="${crit}" onchange="actualizarMemoria('${llaveID}', '${alumno.dni}', '${crit}', this.value)">
+                                ${opcionesCualitativas.map(o => `<option value="${o}" ${valC===o?'selected':''}>${o}</option>`).join('')}
+                             </select></td>`;
                 });
             }
         }
         tr.innerHTML = html;
         tbody.appendChild(tr);
     });
-}
-
-function limpiarTabla() {
-    const tbody = document.querySelector('#tabla-notas tbody');
-    if(tbody) tbody.innerHTML = '<tr><td colspan="10" style="padding:30px; color:#999;">Complete los filtros para ver la lista</td></tr>';
 }
 
 // 4. EVENTOS (Se mantienen igual)
