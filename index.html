@@ -73,8 +73,10 @@
                     </div>
                     <div class="filter-group">
                         <label>Períodos</label>
-                        <select id="periodos">
+                        <select id="periodos" onchange="cargarAlumnos()">
                             <option value="">Seleccione Período</option>
+                            <option value="1_Bimestre">1er_Bimestre</option> 
+                            <option value="2_Bimestre">2do_Bimestre</option> 
                             <option value="1">1er Cuatrimestre</option>
                             <option value="2">2do Cuatrimestre</option>
                         </select>
@@ -93,8 +95,10 @@
                     </div>
                     <div class="filter-group">
                         <label>Períodos</label>
-                        <select id="periodos-cualitativas">
+                        <select id="periodos-cualitativas" onchange="cargarAlumnos()">
                             <option value="">Seleccione Período</option>
+                            <option value="1_Bimestre">1er_Bimestre</option> 
+                            <option value="2_Bimestre">2do_Bimestre</option> 
                             <option value="1">1er Cuatrimestre</option>
                             <option value="2">2do Cuatrimestre</option>
                         </select>
@@ -126,7 +130,7 @@
 
         <div class="danger-zone" style="margin-top: 100px; padding: 20px; border-top: 1px solid #eee; text-align: center;">
             <p style="font-size: 0.8rem; color: #999; margin-bottom: 10px;">Zona de mantenimiento</p>
-           <button id="btnLimpiar" class="btn-clear-minimal" onclick="borrarMemoriaConClave()"disabled>          
+           <button id="btnLimpiar" class="btn-clear-minimal" onclick="borrarMemoriaConClave()" disabled>          
                 <i class="fas fa-trash-alt"></i> Borrar memoria local del navegador
             </button>
         </div>
@@ -139,3 +143,4 @@
 <footer>
     <p><small>&copy; 2026 S.F.S (ATP). Todos los derechos reservados.</small></p>
 </footer>
+
