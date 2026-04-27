@@ -337,7 +337,7 @@ const frasesPorMateria = {
 
 let tabActual = 'espacios';
 let memoriaGlobal = JSON.parse(localStorage.getItem('asistenteNotasMemoria')) || {};
-const URL_WEB_APP = 'https://script.google.com/macros/s/AKfycbxJuX14V4U7cqW4LT9FgGemEyPajxrBJv8X3Hwz-jvXDocOpmTrlDrsoNUr8eHth6og/exec';
+const URL_WEB_APP = 'https://script.google.com/macros/s/AKfycbyhoBBLl995zFUqmSe7Yc7B9_ICWOr4OGKn3vwf0kjpXUDOXNZxuhb2UXLeYlu4onz6NQ/exec';
 
 // 2. FUNCIONES DE ACCESO Y APOYO (Se mantienen igual)
 function verificarAcceso() {
@@ -676,8 +676,19 @@ async function guardarEnGoogleSheets() {
     const turno = document.getElementById('turnos').value;
     const curso = document.getElementById('cursos').value;
     const materia = document.getElementById('materias').value || document.getElementById('areas-cualitativas').value;
+    // Línea 679 original (Mantenla igual para que funcionen las notas)
     const periodo = document.getElementById('periodos').value || document.getElementById('periodos-cualitativas').value;
 
+    // NUEVA LÓGICA: Traducimos el "1" a "1er Cuatrimestre" solo para la planilla
+    let nombrePeriodoParaPlanilla = periodo; 
+
+    if (periodo === "1") {
+        nombrePeriodoParaPlanilla = "1er Cuatrimestre";
+    } else if (periodo === "2") {
+        nombrePeriodoParaPlanilla = "2do Cuatrimestre";
+    }
+
+  
     const llave = `${turno}-${curso}-${materia}-${periodo}`;
     const datos = [];
     const alumnos = baseDeDatosAlumnos[turno][curso];
@@ -691,7 +702,7 @@ async function guardarEnGoogleSheets() {
             curso: curso, 
             turno: turno, 
             materia: materia, 
-            periodo: periodo,
+            periodo: nombrePeriodoParaPlanilla,
             // Notas y Observaciones
             nota: m.nota || "", 
             obs1: m.sel_1 || "", 
