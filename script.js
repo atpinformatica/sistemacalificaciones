@@ -521,7 +521,14 @@ function validarYFiltrar() {
     } else {
         limpiarTabla();
     }
+    if (turno && curso && periodo && materiaUArea) {
+        // ESTA LÍNEA ES VITAL:
+        importarDatosDesdeNube(); 
+        
+        cargarAlumnos(); // Esto muestra la lista
+    }
 }
+ 
 
 function actualizarSelectorCursos() {
     const turnoSeleccionado = document.getElementById('turnos').value;
@@ -545,8 +552,11 @@ function actualizarSelectorCursos() {
 async function importarDatosDesdeNube() {
     const turno = document.getElementById('turnos').value;
     const curso = document.getElementById('cursos').value;
-    const periodo = tabActual === 'espacios' ? document.getElementById('periodos').value : document.getElementById('periodos-cualitativas').value;
-    const materia = tabActual === 'espacios' ? document.getElementById('materias').value : document.getElementById('areas-cualitativas').value;
+    // Buscamos la materia y el periodo según la pestaña activa
+    const materia = document.getElementById('materias').value || document.getElementById('areas-cualitativas').value;
+    const periodo = document.getElementById('periodos').value || document.getElementById('periodos-cualitativas').value;
+
+    if (!turno || !curso || !materia || !periodo) return;
 
     const urlConsulta = `${URL_WEB_APP}?turno=${encodeURIComponent(turno)}&curso=${encodeURIComponent(curso)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
 
@@ -554,12 +564,17 @@ async function importarDatosDesdeNube() {
         const respuesta = await fetch(urlConsulta);
         const datosNube = await respuesta.json();
         
-        // Mezclamos lo de la nube con la memoria local
         const llave = `${turno}-${curso}-${materia}-${periodo}`;
-        memoriaGlobal[llave] = datosNube;
-        localStorage.setItem('asistenteNotasMemoria', JSON.stringify(memoriaGlobal));
         
-        cargarAlumnos(); // Refrescamos la tabla con los datos nuevos
+        // Si la nube tiene datos, actualizamos la memoria local del celular
+        if (Object.keys(datosNube).length > 0) {
+            memoriaGlobal[llave] = datosNube;
+            localStorage.setItem('asistenteNotasMemoria', JSON.stringify(memoriaGlobal));
+            
+            // Forzamos a la tabla a redibujarse con los datos nuevos
+            cargarAlumnos(); 
+            console.log("Sincronización exitosa desde la nube");
+        }
     } catch (error) {
         console.error("Error al sincronizar:", error);
     }
