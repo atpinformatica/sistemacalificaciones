@@ -505,26 +505,28 @@ async function validarYFiltrar() {
     const turno = document.getElementById('turnos').value;
     const curso = document.getElementById('cursos').value;
     let filtrosCompletos = false;
-    let materiaUArea = "";
-    let periodoUArea = "";
+    let matUArea = "";
+    let perUArea = "";
 
     if (tabActual === 'espacios') {
-        materiaUArea = document.getElementById('materias').value;
-        periodoUArea = document.getElementById('periodos').value;
-        if (turno && curso && materiaUArea && periodoUArea) filtrosCompletos = true;
+        matUArea = document.getElementById('materias').value;
+        perUArea = document.getElementById('periodos').value;
+        if (turno && curso && matUArea && perUArea) filtrosCompletos = true;
     } else {
-        materiaUArea = document.getElementById('areas-cualitativas').value;
-        periodoUArea = document.getElementById('periodos-cualitativas').value;
-        if (turno && curso && materiaUArea && periodoUArea) filtrosCompletos = true;
+        matUArea = document.getElementById('areas-cualitativas').value;
+        perUArea = document.getElementById('periodos-cualitativas').value;
+        if (turno && curso && matUArea && perUArea) filtrosCompletos = true;
     }
 
     if (filtrosCompletos) {
-        // 1. Mostramos un mensaje de carga para que el usuario sepa que estamos buscando en la nube
-        document.querySelector('#tabla-notas tbody').innerHTML = '<tr><td colspan="20" style="text-align:center; padding:20px;">Sincronizando con Google Sheets...</td></tr>';
+        // Mostramos un aviso visual de que estamos buscando en la nube
+        document.querySelector('#tabla-notas tbody').innerHTML = '<tr><td colspan="20" style="text-align:center; padding:20px;">Sincronizando con la nube...</td></tr>';
         
-        // 2. Traemos los datos de la nube PRIMERO
-        // Esta función ahora debe encargarse de llamar a cargarAlumnos() al terminar
+        // ESPERAMOS a que la nube responda antes de seguir
         await importarDatosDesdeNube(); 
+        
+        // Una vez que importarDatosDesdeNube termina y actualiza memoriaGlobal, cargamos
+        cargarAlumnos();
     } else {
         limpiarTabla();
     }
@@ -556,11 +558,6 @@ async function importarDatosDesdeNube() {
     const materia = document.getElementById('materias').value || document.getElementById('areas-cualitativas').value;
     const periodo = document.getElementById('periodos').value || document.getElementById('periodos-cualitativas').value;
 
-    if (!turno || !curso || !materia || !periodo) return;
-
-    // Mostramos un mensaje temporal en la tabla mientras descarga
-    document.querySelector('#tabla-notas tbody').innerHTML = '<tr><td colspan="20" style="text-align:center;">Sincronizando con la nube...</td></tr>';
-
     const urlConsulta = `${URL_WEB_APP}?turno=${encodeURIComponent(turno)}&curso=${encodeURIComponent(curso)}&materia=${encodeURIComponent(materia)}&periodo=${encodeURIComponent(periodo)}`;
 
     try {
@@ -568,17 +565,14 @@ async function importarDatosDesdeNube() {
         const datosNube = await respuesta.json();
         const llave = `${turno}-${curso}-${materia}-${periodo}`;
 
-        // Reemplazamos la memoria local con lo que hay en Google Sheets
-        memoriaGlobal[llave] = datosNube;
-        localStorage.setItem('asistenteNotasMemoria', JSON.stringify(memoriaGlobal));
-        
-        // ¡IMPORTANTE! Volvemos a llamar a cargarAlumnos para que dibuje las notas traídas
-        cargarAlumnos(); 
-        console.log("Datos sincronizados desde Google Sheets");
+        // Si la nube devolvió datos, actualizamos la memoria local del dispositivo actual
+        if (Object.keys(datosNube).length > 0) {
+            memoriaGlobal[llave] = datosNube;
+            localStorage.setItem('asistenteNotasMemoria', JSON.stringify(memoriaGlobal));
+            console.log("Sincronización exitosa para: " + llave);
+        }
     } catch (error) {
-        console.error("Error al leer de la nube:", error);
-        // Si falla la nube, al menos cargamos lo que haya local
-        cargarAlumnos();
+        console.error("Error al conectar con la nube:", error);
     }
 }
 
