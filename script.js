@@ -337,8 +337,74 @@ const frasesPorMateria = {
 };
 
 let tabActual = 'espacios';
-let memoriaGlobal = JSON.parse(localStorage.getItem('asistenteNotasMemoria')) || {};
+let memoriaGlobal = {}; // Ya no usa localStorage — se carga desde Google Sheets al iniciar
+let datosSheetsCargados = false; // Bandera para saber si ya terminó la carga inicial
 const URL_WEB_APP = 'https://script.google.com/macros/s/AKfycbxnS9qNjshBrI81t9IzVON9E4EzZYLivWpM2Vb8tbWc600mzIBeAdER2EcnXj_v3SV9EA/exec';
+
+/**
+ * Carga todos los datos guardados desde Google Sheets al iniciar la app.
+ * Los convierte al mismo formato que usaba localStorage, así el resto del
+ * código no necesita cambios.
+ */
+async function cargarDesdeSheetsAlIniciar() {
+    const tbody = document.querySelector('#tabla-notas tbody');
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:30px;text-align:center;color:#007bff;">
+        <i class="fas fa-spinner fa-spin"></i> Cargando datos desde el servidor...
+    </td></tr>`;
+
+    try {
+        const resp = await fetch(URL_WEB_APP, { method: 'GET', mode: 'cors' });
+        const filas = await resp.json();
+
+        if (filas.error) throw new Error(filas.error);
+
+        filas.forEach(item => {
+            // Reconstruimos la misma "llave" que usa el resto de la app
+            // El periodo guardado en Sheets viene como "1er Cuatrimestre" / "2do Cuatrimestre"
+            // lo normalizamos al formato interno ("1" / "2" / "1_Bimestre" / etc.)
+            let periodoInterno = item.periodo;
+            if (item.periodo === "1er Cuatrimestre") periodoInterno = "1";
+            if (item.periodo === "2do Cuatrimestre") periodoInterno = "2";
+            // Los bimestres ya vienen con el nombre correcto desde Sheets
+
+            const llave = `${item.turno}-${item.curso}-${item.materia}-${periodoInterno}`;
+
+            // Buscamos el DNI del alumno en la base de datos local
+            const turnoData = baseDeDatosAlumnos[item.turno];
+            if (!turnoData || !turnoData[item.curso]) return;
+            const alumno = turnoData[item.curso].find(a => a.nombre === item.nombre);
+            if (!alumno) return;
+
+            if (!memoriaGlobal[llave]) memoriaGlobal[llave] = {};
+            memoriaGlobal[llave][alumno.dni] = {
+                nota:             item.nota            || "",
+                sel_1:            item.obs1            || "",
+                sel_2:            item.obs2            || "",
+                sel_3:            item.obs3            || "",
+                observacion:      item.obs4            || "",
+                "Interpreta":     item.interpreta      || "-",
+                "Relaciona":      item.relaciona       || "-",
+                "Aplica":         item.aplica          || "-",
+                "Participación":  item.participacion   || "-",
+                "Autonomía":      item.autonomia       || "-",
+                "Realización de TP":   item.realizacion_tp   || "-",
+                "Cumplimiento AEC":    item.cumplimiento_aec || "-"
+            };
+        });
+
+        datosSheetsCargados = true;
+        console.log(`✅ ${filas.length} registros cargados desde Sheets.`);
+
+    } catch (err) {
+        console.warn("⚠️ No se pudo cargar desde Sheets, se usará memoria vacía.", err);
+        datosSheetsCargados = true; // Seguimos igual, solo sin datos previos
+    }
+
+    // Limpiamos el mensaje de carga y dejamos la tabla en su estado inicial
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:30px;color:#777;text-align:center;">
+        <i class="fas fa-filter"></i> Seleccione todos los filtros para visualizar la lista de alumnos
+    </td></tr>`;
+}
 
 // 2. FUNCIONES DE ACCESO Y APOYO (Se mantienen igual)
 function verificarAcceso() {
@@ -449,7 +515,7 @@ function respaldarAPantallaAMemoria() {
         const txtObs = fila.querySelector('.text-obs');
         if (txtObs) memoriaGlobal[llaveID][dni].observacion = txtObs.value;
     });
-    localStorage.setItem('asistenteNotasMemoria', JSON.stringify(memoriaGlobal));
+    // Nota: ya no guardamos en localStorage. Los datos persisten en Google Sheets al presionar "Guardar".
 }
 
 function switchTab(tab) {
@@ -658,7 +724,7 @@ function cargarAlumnos() {
     });
 }
 
-// 4. EVENTOS (Se mantienen igual)
+// 4. EVENTOS
 document.addEventListener('DOMContentLoaded', () => {
     if (sessionStorage.getItem('autenticado') === 'true') {
         const overlay = document.getElementById('login-overlay');
@@ -677,7 +743,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('nota-input')) respaldarAPantallaAMemoria();
     });
     document.getElementById('btnGuardar').onclick = guardarEnGoogleSheets;
-    document.getElementById('btnLimpiar').onclick = () => { if(confirm("¿Borrar todo?")) { localStorage.clear(); location.reload(); }};
+    // Botón limpiar: ahora solo limpia la memoria en RAM de esta sesión (los datos en Sheets no se tocan)
+    document.getElementById('btnLimpiar').onclick = () => {
+        if(confirm("¿Limpiar la memoria de esta sesión? Los datos guardados en Sheets no se borran.")) {
+            memoriaGlobal = {};
+            location.reload();
+        }
+    };
+
+    // *** CLAVE: Cargar datos desde Google Sheets al abrir la app ***
+    cargarDesdeSheetsAlIniciar();
 });
 
 // 5. GUARDAR DATOS (VERSIÓN CORREGIDA 2026)
